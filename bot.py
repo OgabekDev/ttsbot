@@ -180,23 +180,29 @@ async def vocabulary_handler(
 # Application bootstrap
 # ---------------------------------------------------------------------------
 
-async def main() -> None:
-    """Build and run the bot using long-polling."""
+def get_application() -> Application:
+    """Build the application object without starting it."""
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, vocabulary_handler)
     )
+    return app
 
-    logger.info("Bot is running via long-polling on Render.")
+
+async def main() -> None:
+    """Build and run the bot using long-polling (for local testing)."""
+    app = get_application()
+    
+    logger.info("Bot is running via long-polling (LOCAL ONLY).")
 
     async with app:
         await app.initialize()
         await app.start()
         await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
-        # Keep running until the process is stopped by Render.
+        # Keep running until the process is stopped.
         await asyncio.Event().wait()
 
         await app.updater.stop()
@@ -204,4 +210,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped.")

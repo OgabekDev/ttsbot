@@ -1,9 +1,0 @@
-services:
-  - type: worker
-    name: ttsbot
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
-    envVars:
-      - key: BOT_TOKEN
-        sync: false   # You'll enter this manually in the Render dashboard
