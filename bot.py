@@ -110,10 +110,8 @@ async def generate_and_send_audio(
         logger.info("Generated TTS for %r → %s", english_word, tmp_path)
 
         with open(tmp_path, "rb") as audio_file:
-            await update.message.reply_audio(
-                audio=audio_file,
-                title=english_word,
-                performer="TTS Bot",
+            await update.message.reply_voice(
+                voice=audio_file,
                 caption=f"🔊 *{english_word}*",
                 parse_mode="Markdown",
             )
