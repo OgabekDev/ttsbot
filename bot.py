@@ -2,13 +2,13 @@
 Telegram Vocabulary TTS Bot
 ============================
 Processes lines in the format "english_word — translation",
-extracts the English word, and replies with its OGG voice message
-via Microsoft Edge TTS (high-quality neural voices).
+extracts the English word, and replies with its MP3 voice message
+via Google Text-to-Speech (gTTS).
 
 Deployed on PythonAnywhere via Flask webhook (see flask_app.py).
 
 Dependencies:
-    pip install python-telegram-bot edge-tts flask
+    pip install python-telegram-bot gTTS flask
 
 Environment variables:
     BOT_TOKEN  — your token from @BotFather
@@ -19,7 +19,7 @@ import logging
 import os
 import tempfile
 
-import edge_tts
+from gtts import gTTS
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -36,10 +36,10 @@ from telegram.ext import (
 # Set the BOT_TOKEN environment variable on your server.
 BOT_TOKEN: str = os.environ.get("BOT_TOKEN", "")
 
-# Edge TTS voice — natural-sounding Microsoft neural voice.
-# Other options: "en-US-AvaMultilingualNeural" (female),
-#                "en-GB-RyanNeural" (British male), etc.
-TTS_VOICE: str = "en-US-EmmaMultilingualNeural"
+# gTTS language / accent settings.
+# tld options: "com" (US), "co.uk" (British), "com.au" (Australian)
+TTS_LANG: str = "en"
+TTS_TLD: str = "com"
 
 # Accepted separators, tried in order. Em-dash variants first, then plain hyphen.
 SEPARATORS: list[str] = [" — ", "—", " - ", "-"]
@@ -94,18 +94,18 @@ async def generate_and_send_audio(
     english_word: str,
 ) -> None:
     """
-    Generate an OGG voice message for *english_word* via Edge TTS
-    and send it as a voice reply (no album art / picture).
+    Generate an MP3 voice message for *english_word* via Google TTS
+    and send it as a voice reply.
     The temporary file is always cleaned up afterwards.
     """
     tmp_path: str | None = None
     try:
-        communicate = edge_tts.Communicate(english_word, TTS_VOICE)
+        tts = gTTS(text=english_word, lang=TTS_LANG, tld=TTS_TLD)
 
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
             tmp_path = tmp_file.name
 
-        await communicate.save(tmp_path)
+        tts.save(tmp_path)
 
         logger.info("Generated TTS for %r → %s", english_word, tmp_path)
 
