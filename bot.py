@@ -2,13 +2,13 @@
 Telegram Vocabulary TTS Bot
 ============================
 Processes lines in the format "english_word — translation",
-extracts the English word, and replies with its MP3 pronunciation
-via Google Text-to-Speech (gTTS).
+extracts the English word, and replies with its OGG voice message
+via Microsoft Edge TTS (high-quality neural voices).
 
 Deployed on PythonAnywhere via Flask webhook (see flask_app.py).
 
 Dependencies:
-    pip install python-telegram-bot gtts flask
+    pip install python-telegram-bot edge-tts flask
 
 Environment variables:
     BOT_TOKEN  — your token from @BotFather
@@ -19,7 +19,7 @@ import logging
 import os
 import tempfile
 
-from gtts import gTTS
+import edge_tts
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -35,6 +35,11 @@ from telegram.ext import (
 
 # Set the BOT_TOKEN environment variable on your server.
 BOT_TOKEN: str = os.environ.get("BOT_TOKEN", "")
+
+# Edge TTS voice — natural-sounding Microsoft neural voice.
+# Other options: "en-US-AvaMultilingualNeural" (female),
+#                "en-GB-RyanNeural" (British male), etc.
+TTS_VOICE: str = "en-US-EmmaMultilingualNeural"
 
 # Accepted separators, tried in order. Em-dash variants first, then plain hyphen.
 SEPARATORS: list[str] = [" — ", "—", " - ", "-"]
@@ -89,16 +94,18 @@ async def generate_and_send_audio(
     english_word: str,
 ) -> None:
     """
-    Generate an MP3 for *english_word* via gTTS and send it as an audio reply.
+    Generate an OGG voice message for *english_word* via Edge TTS
+    and send it as a voice reply (no album art / picture).
     The temporary file is always cleaned up afterwards.
     """
     tmp_path: str | None = None
     try:
-        tts = gTTS(text=english_word, lang="en", slow=False)
+        communicate = edge_tts.Communicate(english_word, TTS_VOICE)
 
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
             tmp_path = tmp_file.name
-            tts.save(tmp_path)
+
+        await communicate.save(tmp_path)
 
         logger.info("Generated TTS for %r → %s", english_word, tmp_path)
 
@@ -106,7 +113,7 @@ async def generate_and_send_audio(
             await update.message.reply_audio(
                 audio=audio_file,
                 title=english_word,
-                filename=f"{english_word}.mp3",
+                performer="TTS Bot",
                 caption=f"🔊 *{english_word}*",
                 parse_mode="Markdown",
             )
