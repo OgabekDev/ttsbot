@@ -5,11 +5,10 @@ Processes lines in the format "english_word — translation",
 extracts the English word, and replies with its MP3 pronunciation
 via Google Text-to-Speech (gTTS).
 
-Runs as a long-polling background worker — ideal for Render's free
-Background Worker service (never sleeps, restarts on crash).
+Deployed on PythonAnywhere via Flask webhook (see flask_app.py).
 
 Dependencies:
-    pip install python-telegram-bot gtts
+    pip install python-telegram-bot gtts flask
 
 Environment variables:
     BOT_TOKEN  — your token from @BotFather
@@ -34,8 +33,8 @@ from telegram.ext import (
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Set the BOT_TOKEN environment variable in Render's dashboard.
-BOT_TOKEN: str = os.environ["BOT_TOKEN"]
+# Set the BOT_TOKEN environment variable on your server.
+BOT_TOKEN: str = os.environ.get("BOT_TOKEN", "")
 
 # Accepted separators, tried in order. Em-dash variants first, then plain hyphen.
 SEPARATORS: list[str] = [" — ", "—", " - ", "-"]
@@ -182,6 +181,11 @@ async def vocabulary_handler(
 
 def get_application() -> Application:
     """Build the application object without starting it."""
+    if not BOT_TOKEN:
+        raise RuntimeError(
+            "BOT_TOKEN is not set. Add it to your WSGI file or environment."
+        )
+
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))
@@ -195,7 +199,7 @@ async def main() -> None:
     """Build and run the bot using long-polling (for local testing)."""
     app = get_application()
     
-    logger.info("Bot is running via long-polling (LOCAL ONLY).")
+    logger.info("Bot is running via long-polling (local dev mode).")
 
     async with app:
         await app.initialize()

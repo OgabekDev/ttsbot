@@ -1,52 +1,103 @@
-import os
+"""
+Flask webhook receiver for the Telegram Vocabulary TTS Bot.
+Designed for PythonAnywhere free-tier deployment.
+"""
+
 import asyncio
+import logging
+
 from flask import Flask, request, jsonify
 from telegram import Update
-from asgiref.sync import async_to_sync
 
-# Import your bot application logic
-from bot import get_application, BOT_TOKEN
+from bot import get_application
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Async helper  —  PythonAnywhere runs WSGI (synchronous), but
+# python-telegram-bot is fully async.  We bridge the gap by creating
+# a fresh event loop for each call.
+# ---------------------------------------------------------------------------
+
+
+def run_async(coro):
+    """Run an async coroutine from synchronous Flask code."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+# ---------------------------------------------------------------------------
+# Application setup
+# ---------------------------------------------------------------------------
 
 app = Flask(__name__)
 
-# Initialize the Telegram Application
 bot_app = get_application()
+run_async(bot_app.initialize())
+logger.info("Telegram bot application initialised.")
 
-# We need to run the initialization once
-# Since Flask handles requests in threads, we use async_to_sync for bot methods
-async_to_sync(bot_app.initialize)()
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
 
 @app.route("/")
 def index():
     return "Bot is running!"
 
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    """Receive updates from Telegram."""
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), bot_app.bot)
-        
-        # Process the update asynchronously
-        async_to_sync(bot_app.process_update)(update)
-        
+    """Receive an update from Telegram and process it."""
+    try:
+        data = request.get_json(force=True)
+        update = Update.de_json(data, bot_app.bot)
+        run_async(bot_app.process_update(update))
         return jsonify({"status": "ok"})
-    return "Invalid request", 400
+    except Exception as exc:
+        logger.error("Error processing webhook: %s", exc, exc_info=True)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
-@app.route("/set_webhook", methods=["GET"])
+
+@app.route("/set_webhook")
 def set_webhook():
-    """Convenience route to set the webhook URL."""
-    # Example: https://yourusername.pythonanywhere.com/webhook
-    # You must replace this with your actual PythonAnywhere URL
+    """Set the Telegram webhook URL.
+
+    Usage:
+        /set_webhook?url=https://YOURUSERNAME.pythonanywhere.com/webhook
+    """
     webhook_url = request.args.get("url")
     if not webhook_url:
-        return "Please provide a 'url' parameter. Example: /set_webhook?url=https://yourname.pythonanywhere.com/webhook"
-    
-    success = async_to_sync(bot_app.bot.set_webhook)(url=webhook_url)
-    if success:
-        return f"Webhook successfully set to {webhook_url}"
-    else:
-        return "Failed to set webhook."
+        return (
+            "Provide a 'url' query parameter.  Example:\n"
+            "/set_webhook?url=https://YOURUSERNAME.pythonanywhere.com/webhook"
+        )
+
+    try:
+        success = run_async(bot_app.bot.set_webhook(url=webhook_url))
+        if success:
+            return f"Webhook set to {webhook_url}"
+        return "Telegram returned failure when setting webhook.", 500
+    except Exception as exc:
+        logger.error("set_webhook error: %s", exc, exc_info=True)
+        return f"Error setting webhook: {exc}", 500
+
+
+# ---------------------------------------------------------------------------
+# Local development
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # Local development server
     app.run(port=5000)
