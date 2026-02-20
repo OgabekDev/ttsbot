@@ -5,6 +5,7 @@ Designed for PythonAnywhere free-tier deployment.
 
 import asyncio
 import logging
+import threading
 
 from flask import Flask, request, jsonify
 from telegram import Update
@@ -23,19 +24,18 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Async helper  —  PythonAnywhere runs WSGI (synchronous), but
-# python-telegram-bot is fully async.  We bridge the gap by creating
-# a fresh event loop for each call.
+# python-telegram-bot is fully async.  We keep ONE persistent event
+# loop alive so httpx (used internally) doesn't hit "loop is closed".
 # ---------------------------------------------------------------------------
+
+_loop = asyncio.new_event_loop()
+_lock = threading.Lock()
 
 
 def run_async(coro):
     """Run an async coroutine from synchronous Flask code."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    with _lock:
+        return _loop.run_until_complete(coro)
 
 
 # ---------------------------------------------------------------------------
@@ -76,13 +76,13 @@ def set_webhook():
     """Set the Telegram webhook URL.
 
     Usage:
-        /set_webhook?url=https://YOURUSERNAME.pythonanywhere.com/webhook
+        /set_webhook?url=https://alienroller.pythonanywhere.com/webhook
     """
     webhook_url = request.args.get("url")
     if not webhook_url:
         return (
             "Provide a 'url' query parameter.  Example:\n"
-            "/set_webhook?url=https://YOURUSERNAME.pythonanywhere.com/webhook"
+            "/set_webhook?url=https://alienroller.pythonanywhere.com/webhook"
         )
 
     try:
