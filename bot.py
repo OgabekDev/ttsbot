@@ -41,8 +41,8 @@ BOT_TOKEN: str = os.environ.get("BOT_TOKEN", "")
 TTS_LANG: str = "en"
 TTS_TLD: str = "com"
 
-# Accepted separators, tried in order. Em-dash variants first, then plain hyphen.
-SEPARATORS: list[str] = [" — ", "—", " - ", "-"]
+# Accepted separators, tried in order. Em-dash, en-dash, then plain hyphen.
+SEPARATORS: list[str] = [" — ", "—", " – ", "–", " - ", "-"]
 
 # Delay (seconds) between audio messages when processing large batches.
 BATCH_DELAY: float = 1.0
@@ -161,8 +161,8 @@ async def vocabulary_handler(
 
     if not words:
         await update.message.reply_text(
-            "🤔 I couldn't find any valid vocabulary lines.\n"
-            "Please use the format: *english_word — translation*",
+            "🤔 Hech qanday to'g'ri so'z topilmadi.\n"
+            "Iltimos, quyidagi formatda yozing: *so'z — tarjima*",
             parse_mode="Markdown",
         )
         return
