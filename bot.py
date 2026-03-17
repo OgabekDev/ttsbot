@@ -69,7 +69,7 @@ def parse_vocabulary_line(line: str) -> str | None:
     """
     Parse a single vocabulary line and return the English word/phrase.
 
-    Accepted formats:
+    Accepted formats (with or without bullet markers like *, •, 1.):
         "english_word — translation"   (em-dash)
         "english_word – translation"   (en-dash)
         "english_word - translation"   (hyphen)
@@ -77,7 +77,14 @@ def parse_vocabulary_line(line: str) -> str | None:
 
     Returns None for empty lines.
     """
+    import re
+
     line = line.strip()
+    if not line:
+        return None
+
+    # Remove leading bullet markers: *, •, -, or numbered prefixes like "1."
+    line = re.sub(r"^(?:[*•]\s+|\d+\.\s+)", "", line).strip()
     if not line:
         return None
 
