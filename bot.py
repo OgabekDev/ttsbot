@@ -15,11 +15,14 @@ Environment variables:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import tempfile
+import time
 
 from gtts import gTTS
+from gtts.tts import gTTSError
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -50,6 +53,15 @@ BATCH_DELAY: float = 1.0
 # Minimum number of words in a batch before the delay kicks in.
 BATCH_DELAY_THRESHOLD: int = 5
 
+# On PythonAnywhere, gTTS can get rate-limited (HTTP 429) because the public IP
+# is shared. We mitigate via caching + throttling + retries.
+TTS_CACHE_DIR: str = os.environ.get(
+    "TTS_CACHE_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tts_cache"),
+)
+TTS_MIN_INTERVAL_SECONDS: float = float(os.environ.get("TTS_MIN_INTERVAL_SECONDS", "1.2"))
+TTS_MAX_RETRIES: int = int(os.environ.get("TTS_MAX_RETRIES", "3"))
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -60,10 +72,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+_tts_lock = asyncio.Lock()
+_last_tts_at: float = 0.0
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _cache_key(text: str) -> str:
+    payload = f"{TTS_LANG}|{TTS_TLD}|{text}".encode("utf-8", errors="ignore")
+    return hashlib.sha1(payload).hexdigest()
+
+
+def _cache_mp3_path(text: str) -> str:
+    os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+    return os.path.join(TTS_CACHE_DIR, f"{_cache_key(text)}.mp3")
+
+
+def _is_probable_429(exc: Exception) -> bool:
+    msg = str(exc)
+    return "429" in msg or "Too Many Requests" in msg
+
+
+async def _throttle_tts() -> None:
+    global _last_tts_at
+    async with _tts_lock:
+        now = time.monotonic()
+        wait_for = (_last_tts_at + TTS_MIN_INTERVAL_SECONDS) - now
+        if wait_for > 0:
+            await asyncio.sleep(wait_for)
+        _last_tts_at = time.monotonic()
+
 
 def parse_vocabulary_line(line: str) -> str | None:
     """
@@ -108,14 +148,44 @@ async def generate_and_send_audio(
     """
     tmp_path: str | None = None
     try:
-        tts = gTTS(text=english_word, lang=TTS_LANG, tld=TTS_TLD)
+        cache_path = _cache_mp3_path(english_word)
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+            tmp_path = cache_path
+            logger.info("TTS cache hit for %r → %s", english_word, cache_path)
+        else:
+            last_exc: Exception | None = None
+            for attempt in range(1, TTS_MAX_RETRIES + 1):
+                try:
+                    await _throttle_tts()
+                    tts = gTTS(text=english_word, lang=TTS_LANG, tld=TTS_TLD)
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
-            tmp_path = tmp_file.name
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".mp3", delete=False
+                    ) as tmp_file:
+                        tmp_path = tmp_file.name
 
-        tts.save(tmp_path)
-
-        logger.info("Generated TTS for %r → %s", english_word, tmp_path)
+                    tts.save(tmp_path)
+                    os.replace(tmp_path, cache_path)
+                    tmp_path = cache_path
+                    logger.info("Generated TTS for %r → %s", english_word, cache_path)
+                    break
+                except (gTTSError, Exception) as exc:  # noqa: BLE001
+                    last_exc = exc
+                    if _is_probable_429(exc) and attempt < TTS_MAX_RETRIES:
+                        backoff = min(20.0, 2.0 ** (attempt - 1))
+                        logger.warning(
+                            "TTS rate-limited for %r (attempt %d/%d). Sleeping %.1fs.",
+                            english_word,
+                            attempt,
+                            TTS_MAX_RETRIES,
+                            backoff,
+                        )
+                        await asyncio.sleep(backoff)
+                        continue
+                    raise
+            else:
+                if last_exc is not None:
+                    raise last_exc
 
         with open(tmp_path, "rb") as audio_file:
             # gTTS outputs MP3. Telegram "voice" messages (sendVoice) are expected
@@ -133,7 +203,12 @@ async def generate_and_send_audio(
             parse_mode="Markdown",
         )
     finally:
-        if tmp_path and os.path.exists(tmp_path):
+        # Only delete true temp files; cached files should be kept.
+        if (
+            tmp_path
+            and os.path.exists(tmp_path)
+            and os.path.abspath(tmp_path).startswith(os.path.abspath(tempfile.gettempdir()))
+        ):
             os.remove(tmp_path)
             logger.debug("Deleted temp file: %s", tmp_path)
 
