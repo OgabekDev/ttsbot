@@ -71,11 +71,11 @@ def parse_vocabulary_line(line: str) -> str | None:
 
     Accepted formats:
         "english_word — translation"   (em-dash)
+        "english_word – translation"   (en-dash)
         "english_word - translation"   (hyphen)
-        "english_word—translation"     (em-dash, no spaces)
-        "english_word-translation"     (hyphen, no spaces)
+        "english_word"                 (single word, no separator)
 
-    Returns None for headers, empty lines, or lines without any separator.
+    Returns None for empty lines.
     """
     line = line.strip()
     if not line:
@@ -86,7 +86,8 @@ def parse_vocabulary_line(line: str) -> str | None:
             english_part = line.split(sep, maxsplit=1)[0].strip()
             return english_part if english_part else None
 
-    return None
+    # No separator found — treat the whole line as an English word.
+    return line
 
 
 async def generate_and_send_audio(
