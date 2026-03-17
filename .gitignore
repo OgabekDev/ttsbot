@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+*.log
+.seen_updates.json
+.venv/
+venv/
+ENV/
+env/

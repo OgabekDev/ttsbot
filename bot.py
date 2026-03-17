@@ -93,8 +93,8 @@ def parse_vocabulary_line(line: str) -> str | None:
             english_part = line.split(sep, maxsplit=1)[0].strip()
             return english_part if english_part else None
 
-    # No separator found — not a valid vocabulary line.
-    return None
+    # No separator found — treat the whole line as the English word/phrase.
+    return line if line else None
 
 
 async def generate_and_send_audio(
@@ -118,8 +118,10 @@ async def generate_and_send_audio(
         logger.info("Generated TTS for %r → %s", english_word, tmp_path)
 
         with open(tmp_path, "rb") as audio_file:
-            await update.message.reply_voice(
-                voice=audio_file,
+            # gTTS outputs MP3. Telegram "voice" messages (sendVoice) are expected
+            # to be OGG/OPUS and may reject MP3, so we send as regular audio.
+            await update.message.reply_audio(
+                audio=audio_file,
                 caption=f"🔊 *{english_word}*",
                 parse_mode="Markdown",
             )
