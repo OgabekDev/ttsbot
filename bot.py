@@ -127,7 +127,7 @@ async def generate_and_send_audio(
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to process %r: %s", english_word, exc)
         await update.message.reply_text(
-            f"⚠️ Could not generate audio for *{english_word}*.",
+            f"⚠️ *{english_word}* uchun audio yaratib bo'lmadi.",
             parse_mode="Markdown",
         )
     finally:
@@ -143,9 +143,9 @@ async def generate_and_send_audio(
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/start — send a welcome message explaining the expected input format."""
     welcome = (
-        "👋 Hello! I'm your Vocabulary Pronunciation Bot.\n\n"
-        "Send me a list of words (one per line, like *'banana — banan'*), "
-        "and I'll send audio for the English parts!"
+        "👋 Salom! Men sizning talaffuz botingizman.\n\n"
+        "Menga so'zlar ro'yxatini yuboring (har bir qatorda bitta, masalan: *banana — banan*), "
+        "va men inglizcha qismining audiosini yuboraman!"
     )
     await update.message.reply_text(welcome, parse_mode="Markdown")
     logger.info("User %s started the bot.", update.effective_user.id)
