@@ -93,8 +93,8 @@ def parse_vocabulary_line(line: str) -> str | None:
             english_part = line.split(sep, maxsplit=1)[0].strip()
             return english_part if english_part else None
 
-    # No separator found — treat the whole line as an English word.
-    return line
+    # No separator found — not a valid vocabulary line.
+    return None
 
 
 async def generate_and_send_audio(
