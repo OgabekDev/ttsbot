@@ -1,13 +1,26 @@
 import os
+import asyncio
 from io import BytesIO
 
+import edge_tts
 from dotenv import load_dotenv
-from gtts import gTTS
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+VOICE = "en-US-AriaNeural"
+
+
+async def generate_audio(text: str) -> BytesIO:
+    communicate = edge_tts.Communicate(text, VOICE)
+    audio_buffer = BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_buffer.write(chunk["data"])
+    audio_buffer.seek(0)
+    return audio_buffer
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -33,12 +46,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not english:
             raise ValueError("English part is empty")
 
-        # Generate audio
-        tts = gTTS(text=english, lang="en")
-        audio_buffer = BytesIO()
-        tts.write_to_fp(audio_buffer)
-        audio_buffer.seek(0)
-
+        audio_buffer = await generate_audio(english)
         await update.message.reply_voice(voice=audio_buffer)
 
     except Exception as e:
