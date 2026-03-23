@@ -19,6 +19,7 @@ import functools
 import hashlib
 import logging
 import os
+import shutil
 import tempfile
 import time
 
@@ -169,7 +170,7 @@ async def generate_and_send_audio(
                     await loop.run_in_executor(
                         None, functools.partial(tts.save, tmp_path)
                     )
-                    os.replace(tmp_path, cache_path)
+                    shutil.move(tmp_path, cache_path)
                     tmp_path = cache_path
                     logger.info("Generated TTS for %r → %s", english_word, cache_path)
                     break
