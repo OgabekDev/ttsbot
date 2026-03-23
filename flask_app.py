@@ -9,9 +9,10 @@ from dotenv import load_dotenv
 from telegram import Update, Bot
 
 # Ensure the project directory is in sys.path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, PROJECT_DIR)
 
-load_dotenv()
+load_dotenv(os.path.join(PROJECT_DIR, ".env"))
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 VOICE = "en-US-AriaNeural"
 
