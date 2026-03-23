@@ -3,7 +3,7 @@ __pycache__/
 *.pyd
 .Python
 *.log
-.seen_updates.json
+.env
 .venv/
 venv/
 ENV/
