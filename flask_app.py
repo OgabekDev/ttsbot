@@ -54,12 +54,30 @@ def process_update(update_data):
                 if not text:
                     raise ValueError("Empty message")
 
-                english = text.split(" - ")[0].strip()
-                if not english:
-                    raise ValueError("English part is empty")
+                lines = text.splitlines()
+                word_lines = [l.strip() for l in lines if " - " in l]
 
-                audio_buffer = generate_audio(english)
-                await bot.send_voice(chat_id=chat_id, voice=audio_buffer)
+                if not word_lines:
+                    english = text.strip()
+                    audio_buffer = generate_audio(english)
+                    audio_buffer.name = "audio.mp3"
+                    await bot.send_audio(
+                        chat_id=chat_id,
+                        audio=audio_buffer,
+                        caption=f"🔊 {english}",
+                    )
+                else:
+                    for line in word_lines:
+                        english = line.split(" - ")[0].strip()
+                        if not english:
+                            continue
+                        audio_buffer = generate_audio(english)
+                        audio_buffer.name = "audio.mp3"
+                        await bot.send_audio(
+                            chat_id=chat_id,
+                            audio=audio_buffer,
+                            caption=f"🔊 {line}",
+                        )
 
             except Exception as e:
                 await bot.send_message(
