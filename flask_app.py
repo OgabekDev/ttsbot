@@ -9,9 +9,10 @@ from dotenv import load_dotenv
 from telegram import Update, Bot
 
 # Ensure the project directory is in sys.path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, PROJECT_DIR)
 
-load_dotenv()
+load_dotenv(os.path.join(PROJECT_DIR, ".env"))
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 VOICE = "en-US-AriaNeural"
 
@@ -83,4 +84,19 @@ def webhook():
 
 @app.route("/")
 def index():
-    return "Bot is running!"
+    status = {"bot": "Audify Bot", "status": "running"}
+    errors = []
+
+    if not BOT_TOKEN:
+        errors.append("BOT_TOKEN not loaded from .env")
+
+    try:
+        import edge_tts  # noqa: F401
+    except ImportError:
+        errors.append("edge-tts package not installed")
+
+    if errors:
+        status["status"] = "error"
+        status["errors"] = errors
+
+    return status
