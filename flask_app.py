@@ -15,6 +15,12 @@ load_dotenv(os.path.join(PROJECT_DIR, ".env"))
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+# PythonAnywhere free tier requires proxy for outgoing HTTPS
+PROXIES = {}
+pa_proxy = os.getenv("https_proxy") or os.getenv("HTTPS_PROXY")
+if pa_proxy:
+    PROXIES = {"https": pa_proxy}
+
 app = Flask(__name__)
 
 
@@ -30,14 +36,15 @@ def send_message(chat_id, text):
     http_requests.post(f"{API_BASE}/sendMessage", json={
         "chat_id": chat_id,
         "text": text,
-    })
+    }, proxies=PROXIES)
 
 
-def send_audio(chat_id, audio_buffer, caption):
+def send_audio(chat_id, audio_buffer, filename, caption):
     http_requests.post(
         f"{API_BASE}/sendAudio",
         data={"chat_id": chat_id, "caption": caption},
-        files={"audio": ("audio.mp3", audio_buffer, "audio/mpeg")},
+        files={"audio": (f"{filename}.mp3", audio_buffer, "audio/mpeg")},
+        proxies=PROXIES,
     )
 
 
@@ -66,14 +73,14 @@ def process_update(update_data):
 
         if not word_lines:
             audio_buffer = generate_audio(text)
-            send_audio(chat_id, audio_buffer, f"\U0001f50a {text}")
+            send_audio(chat_id, audio_buffer, text, f"\U0001f50a {text}")
         else:
             for line in word_lines:
                 english = line.split(" - ")[0].strip()
                 if not english:
                     continue
                 audio_buffer = generate_audio(english)
-                send_audio(chat_id, audio_buffer, f"\U0001f50a {line}")
+                send_audio(chat_id, audio_buffer, english, f"\U0001f50a {line}")
 
     except Exception as e:
         send_message(
