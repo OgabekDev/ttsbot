@@ -15,6 +15,7 @@ Environment variables:
 """
 
 import asyncio
+import functools
 import hashlib
 import logging
 import os
@@ -164,7 +165,10 @@ async def generate_and_send_audio(
                     ) as tmp_file:
                         tmp_path = tmp_file.name
 
-                    tts.save(tmp_path)
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(
+                        None, functools.partial(tts.save, tmp_path)
+                    )
                     os.replace(tmp_path, cache_path)
                     tmp_path = cache_path
                     logger.info("Generated TTS for %r → %s", english_word, cache_path)
@@ -190,17 +194,18 @@ async def generate_and_send_audio(
         with open(tmp_path, "rb") as audio_file:
             # gTTS outputs MP3. Telegram "voice" messages (sendVoice) are expected
             # to be OGG/OPUS and may reject MP3, so we send as regular audio.
+            safe_word = english_word.replace("*", "").replace("_", "").replace("`", "")
             await update.message.reply_audio(
                 audio=audio_file,
-                caption=f"🔊 *{english_word}*",
+                caption=f"🔊 *{safe_word}*",
                 parse_mode="Markdown",
             )
 
     except Exception as exc:  # noqa: BLE001
-        logger.error("Failed to process %r: %s", english_word, exc)
+        logger.error("Failed to process %r: %s", english_word, exc, exc_info=True)
+        safe_word = english_word.replace("*", "").replace("_", "").replace("`", "")
         await update.message.reply_text(
-            f"⚠️ *{english_word}* uchun audio yaratib bo'lmadi.",
-            parse_mode="Markdown",
+            f"⚠️ {safe_word} uchun audio yaratib bo'lmadi.\nXatolik: {exc}",
         )
     finally:
         # Only delete true temp files; cached files should be kept.
